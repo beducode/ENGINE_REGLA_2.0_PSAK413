@@ -1,0 +1,151 @@
+---- DROP PROCEDURE SP_IFRS_UPDATE_EIR;
+
+CREATE OR REPLACE PROCEDURE SP_IFRS_UPDATE_EIR(
+    IN P_RUNID VARCHAR(20) DEFAULT 'S_00000_0000',
+    IN P_DOWNLOAD_DATE DATE DEFAULT NULL,
+    IN P_PRC VARCHAR(1) DEFAULT 'S')
+LANGUAGE PLPGSQL AS $$
+DECLARE
+    ---- DATE
+    V_PREVDATE DATE;
+    V_CURRDATE DATE;
+
+    ---- QUERY   
+    V_STR_QUERY TEXT;
+
+    ---- TABLE LIST       
+    V_TABLENAME VARCHAR(100);
+    V_TABLEINSERT VARCHAR(100);
+    
+    ---- CONDITION
+    V_RETURNROWS INT;
+    V_RETURNROWS2 INT;
+    V_TABLEDEST VARCHAR(100);
+    V_COLUMNDEST VARCHAR(100);
+    V_SPNAME VARCHAR(100);
+    V_OPERATION VARCHAR(100);
+
+    ---- RESULT
+    V_QUERYS TEXT;
+
+    --- VARIABLE
+    V_SP_NAME VARCHAR(100);
+    STACK TEXT; 
+    FCESIG TEXT;
+BEGIN 
+    -------- ====== VARIABLE ======
+	GET DIAGNOSTICS STACK = PG_CONTEXT;
+	FCESIG := substring(STACK from 'function (.*?) line');
+	V_SP_NAME := UPPER(LEFT(fcesig::regprocedure::text, POSITION('(' in fcesig::regprocedure::text)-1));
+
+    IF COALESCE(P_PRC, NULL) IS NULL THEN
+        P_PRC := 'S';
+    END IF;
+
+    IF COALESCE(P_RUNID, NULL) IS NULL THEN
+        P_RUNID := 'S_00000_0000';
+    END IF;
+
+    IF P_PRC = 'S' THEN 
+        V_TABLENAME := 'TMP_IMA_' || P_RUNID || '';
+        V_TABLEINSERT := 'EIR_' || P_RUNID || '';
+    ELSE 
+        V_TABLENAME := 'IFRS_MASTER_ACCOUNT';
+        V_TABLEINSERT := 'EIR';
+    END IF;
+    
+    IF P_DOWNLOAD_DATE IS NULL 
+    THEN
+        SELECT
+            CURRDATE, PREVDATE INTO V_CURRDATE, V_PREVDATE
+        FROM
+            IFRS_PRC_DATE;
+    ELSE        
+        V_CURRDATE := P_DOWNLOAD_DATE;
+        V_PREVDATE := V_CURRDATE - INTERVAL '1 DAY';
+    END IF;
+    
+    V_RETURNROWS2 := 0;
+    -------- ====== VARIABLE ======
+
+    -------- RECORD RUN_ID --------
+    CALL SP_IFRS_RUNNING_LOG(V_CURRDATE, V_SP_NAME, P_RUNID, PG_BACKEND_PID(), CURRENT_DATE);
+    -------- RECORD RUN_ID --------
+
+    -------- ====== PRE SIMULATION TABLE ======
+    IF P_PRC = 'S' THEN
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE ' || V_TABLEINSERT || ' AS SELECT * FROM EIR WHERE 1=0 ';
+        EXECUTE (V_STR_QUERY);
+
+        -- TODO: REMOVE THIS ONCE STAGING TABLE IS READY
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE IF NOT EXISTS T_TRN_LOAN_VALUATION (
+            VALUATION_DATE DATE,
+            DEAL_ID VARCHAR(25),
+            AMOUNT DOUBLE PRECISION4
+            ) ';
+        EXECUTE (V_STR_QUERY);
+    END IF;
+    -------- ====== PRE SIMULATION TABLE ======
+
+    -------- ====== BODY ======
+    IF V_CURRDATE <= '2019-07-31'::DATE THEN 
+        --? CHANGE IMPLEMENTATION SO IT DOESN'T NEED TMP TABLE
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'TRUNCATE TABLE EIR';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'INSERT INTO EIR 
+            (VALUATION_DATE, DEAL_ID, EIR) 
+            SELECT A.VALUATION_DATE, A.DEAL_ID, B.AMOUNT / 100000000000000 AS EIR 
+            FROM (
+                SELECT MAX(VALUATION_DATE) AS VALUATION_DATE, DEAL_ID 
+                FROM T_TRN_LOAN_VALUATION
+                WHERE VALUATION_TYPE = ''EFF YIELD 99'' AND CAST(VALUATION_DATE AS DATE) <= ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE 
+                GROUP BY DEAL_ID 
+                ORDER BY MAX(VALUATION_DATE) 
+            ) A 
+            JOIN T_TRN_LOAN_VALUATION B -- TODO: ADJUST TABLE NAME INTO STAGING TABLE 
+            ON A.VALUATION_DATE = B.VALUATION_DATE 
+            AND A.DEAL_ID = B.DEAL_ID ';
+        EXECUTE (V_STR_QUERY);
+
+        GET DIAGNOSTICS V_RETURNROWS = ROW_COUNT;
+        V_RETURNROWS2 := V_RETURNROWS2 + V_RETURNROWS;
+        V_RETURNROWS := 0;
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE ' || V_TABLENAME || ' A 
+            SET EIR = B.EIR 
+            FROM EIR B 
+            WHERE CONCAT(A.BRANCH_CODE, A.PRODUCT_CODE, A.ACCOUNT_NUMBER) = B.DEAL_ID 
+            AND A.DOWNLOAD_DATE = ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE ';
+        EXECUTE (V_STR_QUERY);
+    END IF;
+
+    RAISE NOTICE 'SP_IFRS_UPDATE_EIR | AFFECTED RECORD : %', V_RETURNROWS2;
+    ---------- ====== BODY ======
+
+    -------- ====== LOG ======
+    V_TABLEDEST = V_TABLEINSERT;
+    V_COLUMNDEST = '-';
+    V_SPNAME = 'SP_IFRS_UPDATE_EIR';
+    V_OPERATION = 'INSERT';
+    
+    CALL SP_IFRS_EXEC_AND_LOG(V_CURRDATE, V_TABLEDEST, V_COLUMNDEST, V_SPNAME, V_OPERATION, V_RETURNROWS2, P_RUNID);
+    -------- ====== LOG ======
+
+    -------- ====== RESULT ======
+    V_QUERYS = 'SELECT * FROM ' || V_TABLEINSERT || '';
+    CALL SP_IFRS_RESULT_PREV(V_CURRDATE, V_QUERYS, V_SPNAME, V_RETURNROWS2, P_RUNID);
+    -------- ====== RESULT ======
+
+END;
+
+$$;

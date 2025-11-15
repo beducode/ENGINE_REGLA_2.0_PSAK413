@@ -1,0 +1,233 @@
+---- DROP PROCEDURE SP_IFRS_IMP_PD_YEAR_TO_MONTH;
+
+CREATE OR REPLACE PROCEDURE SP_IFRS_IMP_PD_YEAR_TO_MONTH(
+    IN P_RUNID VARCHAR(20) DEFAULT 'S_00000_0000', 
+    IN P_DOWNLOAD_DATE DATE DEFAULT NULL,
+    IN P_PRC VARCHAR(1) DEFAULT 'S')
+LANGUAGE PLPGSQL AS $$
+DECLARE
+    ---- DATE
+    V_PREVDATE DATE;
+    V_PREVMONTH DATE;
+    V_CURRDATE DATE;
+    V_LASTYEAR DATE;
+    V_LASTYEARNEXTMONTH DATE;
+
+    ---- QUERY   
+    V_STR_QUERY TEXT;
+
+    ---- TABLE LIST       
+    V_TABLENAME VARCHAR(100); 
+    V_TABLENAME_MON VARCHAR(100);
+    V_TABLEINSERT1 VARCHAR(100);
+    V_TABLEINSERT2 VARCHAR(100);
+    V_TABLEINSERT3 VARCHAR(100);
+    V_TABLEINSERT4 VARCHAR(100);
+    V_TABLEINSERT5 VARCHAR(100);
+    V_TABLEINSERT6 VARCHAR(100);
+    V_TABLEINSERT7 VARCHAR(100);
+    V_TABLEPDCONFIG VARCHAR(100);
+
+    ---- CONDITION
+    V_RETURNROWS INT;
+    V_RETURNROWS2 INT;
+    V_TABLEDEST VARCHAR(100);
+    V_COLUMNDEST VARCHAR(100);
+    V_SPNAME VARCHAR(100);
+    V_OPERATION VARCHAR(100);
+
+    ---- VARIABLE PROCESS
+    V_MAX_YEAR INT;            
+    V_MIN_YEAR INT;           
+    V_COUNT_MIN INT = 1;             
+    V_COUNT_MAX INT = 12;  
+
+    ---- RESULT
+    V_QUERYS TEXT;
+
+    --- VARIABLE
+    V_SP_NAME VARCHAR(100);
+    STACK TEXT; 
+    FCESIG TEXT;
+BEGIN 
+    -------- ====== VARIABLE ======
+	GET DIAGNOSTICS STACK = PG_CONTEXT;
+	FCESIG := substring(STACK from 'function (.*?) line');
+	V_SP_NAME := UPPER(LEFT(fcesig::regprocedure::text, POSITION('(' in fcesig::regprocedure::text)-1));
+
+    IF COALESCE(P_PRC, NULL) IS NULL THEN
+        P_PRC := 'S';
+    END IF;
+
+    IF COALESCE(P_RUNID, NULL) IS NULL THEN
+        P_RUNID := 'S_00000_0000';
+    END IF;
+
+    IF P_PRC = 'S' THEN 
+        V_TABLENAME := 'TMP_IMA_' || P_RUNID || '';
+        V_TABLENAME_MON := 'TMP_IMAM_' || P_RUNID || '';
+        V_TABLEINSERT1 := 'TMP_IFRS_ECL_IMA_' || P_RUNID || '';
+        V_TABLEINSERT2 := 'IFRS_IMA_IMP_CURR_' || P_RUNID || '';
+        V_TABLEINSERT3 := 'IFRS_IMA_IMP_PREV_' || P_RUNID || '';
+        V_TABLEINSERT4 := 'IFRS_PD_TERM_STRUCTURE_NOFL_' || P_RUNID || '';
+        V_TABLEPDCONFIG := 'IFRS_PD_RULES_CONFIG_' || P_RUNID || '';
+    ELSE 
+        V_TABLENAME := 'IFRS_MASTER_ACCOUNT';
+        V_TABLENAME_MON := 'IFRS_MASTER_ACCOUNT_MONTHLY';
+        V_TABLEINSERT1 := 'TMP_IFRS_ECL_IMA';
+        V_TABLEINSERT2 := 'IFRS_IMA_IMP_CURR';
+        V_TABLEINSERT3 := 'IFRS_IMA_IMP_PREV';
+        V_TABLEINSERT4 := 'IFRS_PD_TERM_STRUCTURE_NOFL';
+        V_TABLEPDCONFIG := 'IFRS_PD_RULES_CONFIG';
+    END IF;
+
+
+    IF P_DOWNLOAD_DATE IS NULL 
+    THEN
+        SELECT
+            CURRDATE INTO V_CURRDATE
+        FROM
+            IFRS_PRC_DATE;
+    ELSE        
+        V_CURRDATE := P_DOWNLOAD_DATE;
+    END IF;
+    
+    V_PREVMONTH := F_EOMONTH(V_CURRDATE, 1, 'M', 'PREV');
+    V_LASTYEAR := F_EOMONTH(V_CURRDATE, 1, 'Y', 'PREV');
+    V_LASTYEARNEXTMONTH := F_EOMONTH(V_LASTYEAR, 1, 'M', 'NEXT');
+    
+    V_RETURNROWS2 := 0;
+    -------- ====== VARIABLE ======
+
+    -------- RECORD RUN_ID --------
+    CALL SP_IFRS_RUNNING_LOG(V_CURRDATE, V_SP_NAME, P_RUNID, PG_BACKEND_PID(), CURRENT_DATE);
+    -------- RECORD RUN_ID --------
+
+    -------- ====== PRE SIMULATION TABLE ======
+    IF P_PRC = 'S' THEN
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT4 || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE ' || V_TABLEINSERT4 || ' AS SELECT * FROM IFRS_PD_TERM_STRUCTURE_NOFL WHERE 0=1';
+        EXECUTE (V_STR_QUERY);
+    END IF;
+    -------- ====== PRE SIMULATION TABLE ======
+    
+    -------- ====== BODY ======
+
+    V_STR_QUERY := '';
+    V_STR_QUERY := V_STR_QUERY || 'DELETE FROM ' || V_TABLEINSERT4 || ' A  
+    USING ' || V_TABLEPDCONFIG || ' B 
+    WHERE A.PD_RULE_ID = B.PKID AND IS_DELETE = 0 AND ACTIVE_FLAG = 1   
+    AND CURR_DATE =  (CASE WHEN B.LAG_1MONTH_FLAG = 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE ELSE ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE END)';
+    EXECUTE (V_STR_QUERY);
+
+    WHILE V_COUNT_MIN <= V_COUNT_MAX
+    LOOP
+        EXECUTE 'INSERT INTO ' || V_TABLEINSERT4 || '     
+        (    
+        DOWNLOAD_DATE      
+        ,CURR_DATE      
+        ,PD_RULE_ID      
+        ,PD_RULE_NAME      
+        ,BUCKET_GROUP      
+        ,BUCKET_ID      
+        ,BUCKET_NAME      
+        ,FL_SEQ      
+        ,FL_YEAR      
+        ,FL_MONTH      
+        ,FL_DATE      
+        ,PD_RATE      
+        )      
+        SELECT        
+        DOWNLOAD_DATE      
+        ,CURR_DATE AS CURR_DATE      
+        ,PD_RULE_ID      
+        ,PD_RULE_NAME      
+        ,A.BUCKET_GROUP      
+        ,BUCKET_ID      
+        ,BUCKET_NAME      
+        ,(12 * (FL_YEAR-1)) + ' || V_COUNT_MIN || ' AS FL_SEQ      
+        ,FL_YEAR AS FL_YEAR      
+        ,' || V_COUNT_MIN || ' AS FL_MONTH      
+        ,NULL AS FL_DATE      
+        ,CASE     
+        WHEN ' || V_COUNT_MIN || ' = 1 THEN 1-POWER((1-PD_RATE),(CAST( ' || V_COUNT_MIN || ' AS DOUBLE PRECISION)/CAST( 12 AS DOUBLE PRECISION)))      
+        ELSE (1-POWER((1-PD_RATE),(CAST( ' || V_COUNT_MIN || ' AS DOUBLE PRECISION)/CAST( 12 AS DOUBLE PRECISION)))) - (1-POWER((1-PD_RATE),(CAST((' || V_COUNT_MIN || '-1) AS DOUBLE PRECISION)/CAST( 12 AS DOUBLE PRECISION))))      
+        END AS PD_RATE      
+        FROM IFRS_PD_TERM_STRUCTURE_NOFL_YEARLY A      
+        INNER JOIN ' || V_TABLEPDCONFIG || ' B ON A.PD_RULE_ID = B.PKID AND IS_DELETE = 0 AND ACTIVE_FLAG = 1    
+        WHERE CURR_DATE = (CASE WHEN B.LAG_1MONTH_FLAG = 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE ELSE ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE END)      
+        AND A.CREATEDBY <> ''NFR''';
+        
+        GET DIAGNOSTICS V_RETURNROWS = ROW_COUNT;
+        V_RETURNROWS2 := V_RETURNROWS2 + V_RETURNROWS;
+        V_RETURNROWS := 0;
+
+        V_COUNT_MIN := V_COUNT_MIN + 1;
+    
+    END LOOP;
+
+    V_STR_QUERY := '';
+    V_STR_QUERY := V_STR_QUERY || 'DELETE FROM ' || V_TABLEINSERT4 || ' WHERE CREATEDBY = ''NFR''';
+    EXECUTE (V_STR_QUERY);
+
+    V_STR_QUERY := '';
+    V_STR_QUERY := V_STR_QUERY || 'INSERT INTO ' || V_TABLEINSERT4 || ' (DOWNLOAD_DATE    
+    ,CURR_DATE    
+    ,PD_RULE_ID    
+    ,PD_RULE_NAME    
+    ,BUCKET_GROUP    
+    ,BUCKET_ID    
+    ,BUCKET_NAME    
+    ,FL_SEQ    
+    ,FL_YEAR    
+    ,FL_MONTH    
+    ,FL_DATE    
+    ,PD_RATE    
+    ,CREATEDBY    
+    ,CREATEDDATE    
+    )    
+    SELECT DOWNLOAD_DATE    
+    ,DOWNLOAD_DATE AS CURR_DATE    
+    ,PD_RULE_ID    
+    ,PD_RULE_NAME    
+    ,BUCKET_GROUP    
+    ,BUCKET_ID    
+    ,NULL AS BUCKET_NAME    
+    ,1 AS FL_SEQ    
+    ,1 AS FL_YEAR    
+    ,1 AS FL_MONTH    
+    ,NULL AS FL_DATE    
+    ,PD_RATE    
+    ,''NFR'' AS CREATEDBY    
+    ,CREATEDDATE 
+    FROM IFRS_PD_NFR_RESULT A';
+    EXECUTE (V_STR_QUERY);
+
+    GET DIAGNOSTICS V_RETURNROWS = ROW_COUNT;
+    V_RETURNROWS2 := V_RETURNROWS2 + V_RETURNROWS;
+    V_RETURNROWS := 0;
+
+    RAISE NOTICE 'SP_IFRS_IMP_PD_YEAR_TO_MONTH | AFFECTED RECORD : %', V_RETURNROWS2;
+    -------- ====== BODY ======
+
+    -------- ====== LOG ======
+    V_TABLEDEST = V_TABLEINSERT4;
+    V_COLUMNDEST = '-';
+    V_SPNAME = 'SP_IFRS_IMP_PD_YEAR_TO_MONTH';
+    V_OPERATION = 'INSERT';
+    
+    CALL SP_IFRS_EXEC_AND_LOG(V_CURRDATE, V_TABLEDEST, V_COLUMNDEST, V_SPNAME, V_OPERATION, V_RETURNROWS2, P_RUNID);
+    -------- ====== LOG ======
+
+    -------- ====== RESULT ======
+    V_QUERYS = 'SELECT * FROM ' || V_TABLEINSERT4 || '';
+    CALL SP_IFRS_RESULT_PREV(V_CURRDATE, V_QUERYS, V_SPNAME, V_RETURNROWS2, P_RUNID);
+    -------- ====== RESULT ======
+
+END;
+
+$$;

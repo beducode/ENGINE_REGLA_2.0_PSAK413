@@ -1,0 +1,917 @@
+---- DROP PROCEDURE SP_IFRS_IMP_EAD_CCF_DETAIL;
+
+CREATE OR REPLACE PROCEDURE SP_IFRS_IMP_EAD_CCF_DETAIL(
+    IN P_RUNID VARCHAR(20) DEFAULT 'S_00000_0000', 
+    IN P_DOWNLOAD_DATE DATE DEFAULT NULL,
+    IN P_PRC VARCHAR(1) DEFAULT 'S')
+LANGUAGE PLPGSQL AS $$
+DECLARE
+    ---- DATE
+    V_PREVDATE DATE;
+    V_PREVMONTH DATE;
+    V_CURRDATE DATE;
+    V_LASTYEAR DATE;
+    V_LASTYEARNEXTMONTH DATE;
+
+    ---- QUERY   
+    V_STR_QUERY TEXT;
+
+    ---- TABLE LIST       
+    V_TABLENAME VARCHAR(100); 
+    V_TABLENAME_MON VARCHAR(100);
+    V_TABLEINSERT1 VARCHAR(100);
+    V_TABLEINSERT2 VARCHAR(100);
+    V_TABLEINSERT3 VARCHAR(100);
+    V_TABLEINSERT4 VARCHAR(100);
+    V_TABLEINSERT5 VARCHAR(100);
+    V_TABLEINSERT6 VARCHAR(100);
+    V_TABLEINSERT7 VARCHAR(100);
+    V_TABLECCFCONFIG VARCHAR(100);
+
+    ---- CONDITION
+    V_RETURNROWS INT;
+    V_RETURNROWS2 INT;
+    V_RETURNROWS3 INT;
+    V_RETURNROWS4 INT;
+    V_RETURNROWS5 INT;
+    V_RETURNROWS6 INT;
+    V_TABLEDEST VARCHAR(100);
+    V_COLUMNDEST VARCHAR(100);
+    V_SPNAME VARCHAR(100);
+    V_OPERATION VARCHAR(100);
+
+    ---- VARIABLE PROCESS
+    V_CALC_METHOD VARCHAR(20);
+
+    ---- RESULT
+    V_QUERYS TEXT;
+
+    --- VARIABLE
+    V_SP_NAME VARCHAR(100);
+    STACK TEXT; 
+    FCESIG TEXT;
+BEGIN 
+    -------- ====== VARIABLE ======
+	GET DIAGNOSTICS STACK = PG_CONTEXT;
+	FCESIG := substring(STACK from 'function (.*?) line');
+	V_SP_NAME := UPPER(LEFT(fcesig::regprocedure::text, POSITION('(' in fcesig::regprocedure::text)-1));
+
+    IF COALESCE(P_PRC, NULL) IS NULL THEN
+        P_PRC := 'S';
+    END IF;
+
+    IF COALESCE(P_RUNID, NULL) IS NULL THEN
+        P_RUNID := 'S_00000_0000';
+    END IF;
+
+    IF P_PRC = 'S' THEN 
+        V_TABLENAME := 'TMP_IMA_' || P_RUNID || '';
+        V_TABLENAME_MON := 'TMP_IMAM_' || P_RUNID || '';
+        V_TABLEINSERT1 := 'TMP_IFRS_ECL_IMA_' || P_RUNID || '';
+        V_TABLEINSERT2 := 'IFRS_EAD_CCF_DETAIL_' || P_RUNID || '';
+        V_TABLEINSERT3 := 'IFRS_EAD_CCF_DETAIL_CIF_' || P_RUNID || '';
+        V_TABLEINSERT4 := 'IFRS_EAD_CCF_DETAIL_FACILITY_' || P_RUNID || '';
+        V_TABLEINSERT5 := 'IFRS_CCF_SCENARIO_DATA_' || P_RUNID || '';
+        V_TABLEINSERT6 := 'IFRS_CCF_SCENARIO_DATA_SUMM_' || P_RUNID || '';
+        V_TABLECCFCONFIG  := 'IFRS_CCF_RULES_CONFIG_' || P_RUNID || '';
+    ELSE 
+        V_TABLENAME := 'IFRS_MASTER_ACCOUNT';
+        V_TABLENAME_MON := 'IFRS_MASTER_ACCOUNT_MONTHLY';
+        V_TABLEINSERT1 := 'TMP_IFRS_ECL_IMA';
+        V_TABLEINSERT2 := 'IFRS_EAD_CCF_DETAIL';
+        V_TABLEINSERT3 := 'IFRS_EAD_CCF_DETAIL_CIF';
+        V_TABLEINSERT4 := 'IFRS_EAD_CCF_DETAIL_FACILITY';
+        V_TABLEINSERT5 := 'IFRS_CCF_SCENARIO_DATA';
+        V_TABLEINSERT6 := 'IFRS_CCF_SCENARIO_DATA_SUMM';
+        V_TABLECCFCONFIG  := 'IFRS_CCF_RULES_CONFIG';
+    END IF;
+
+
+    IF P_DOWNLOAD_DATE IS NULL 
+    THEN
+        SELECT
+            CURRDATE INTO V_CURRDATE
+        FROM
+            IFRS_PRC_DATE;
+    ELSE        
+        V_CURRDATE := P_DOWNLOAD_DATE;
+    END IF;
+    
+    V_PREVMONTH := F_EOMONTH(V_CURRDATE, 1, 'M', 'PREV');
+    V_LASTYEAR := F_EOMONTH(V_CURRDATE, 1, 'Y', 'PREV');
+    V_LASTYEARNEXTMONTH := F_EOMONTH(V_LASTYEAR, 1, 'M', 'NEXT');
+    
+    V_RETURNROWS2 := 0;
+    V_RETURNROWS4 := 0;
+    V_RETURNROWS6 := 0;
+    -------- ====== VARIABLE ======
+
+    -------- ====== PRE SIMULATION TABLE ======
+    IF P_PRC = 'S' THEN
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT2 || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE ' || V_TABLEINSERT2 || ' AS SELECT * FROM IFRS_EAD_CCF_DETAIL WHERE 0=1';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT3 || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE ' || V_TABLEINSERT3 || ' AS SELECT * FROM IFRS_EAD_CCF_DETAIL_CIF WHERE 0=1';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT4 || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE ' || V_TABLEINSERT4 || ' AS SELECT * FROM IFRS_EAD_CCF_DETAIL_FACILITY WHERE 0=1';
+        EXECUTE (V_STR_QUERY);
+    END IF;
+    -------- ====== PRE SIMULATION TABLE ======
+    
+    -------- ====== BODY ======
+    V_STR_QUERY := '';
+    V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS TMP_CCF_RULES_CONFIG_' || P_RUNID || '';
+    EXECUTE (V_STR_QUERY);
+
+    V_STR_QUERY := '';
+    V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE TMP_CCF_RULES_CONFIG_' || P_RUNID || ' AS 
+    SELECT DISTINCT                    
+    A.PKID,                    
+    A.CCF_RULE_NAME,                    
+    A.SEGMENTATION_ID,                    
+    A.CALC_METHOD,                    
+    A.AVERAGE_METHOD,                    
+    A.DEFAULT_RULE_ID,                    
+    A.CUT_OFF_DATE,                    
+    A.CCF_OVERRIDE,                    
+    A.LAG_1MONTH_FLAG,          
+    OBSERV_PERIOD_MOVING,          
+    OS_DEF_ZERO_EXCLUDE,          
+    HEADROOM_ZERO_EXCLUDE
+    FROM ' || V_TABLECCFCONFIG || ' A           
+    WHERE A.IS_DELETE = 0                     
+    AND A.ACTIVE_FLAG = 1                       
+    AND CALC_METHOD <> ''EXT''';
+    EXECUTE (V_STR_QUERY);
+
+    EXECUTE 'SELECT CALC_METHOD FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' WHERE CALC_METHOD = ''ACCOUNT'' ' INTO V_CALC_METHOD;
+
+    IF COALESCE(V_CALC_METHOD, NULL) IS NOT NULL THEN
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DELETE FROM IFRS_EAD_CCF_DETAIL A          
+        USING TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        ON A.CCF_RULE_ID = B.PKID
+        WHERE DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'INSERT INTO IFRS_EAD_CCF_DETAIL          
+        (           
+        CCF_RULE_ID,                    
+        DOWNLOAD_DATE,                    
+        CCF_UNIQUE_ID,                    
+        CUSTOMER_NUMBER,                    
+        CUSTOMER_NAME,                    
+        FACILITY_NUMBER,                    
+        EQV_AT_DEFAULT,                    
+        EQV_PLAFOND_AT_DEFAULT,                    
+        EQV_PLAFOND_12M_BEFORE_DEFAULT,                    
+        EQV_OS_12M_BEFORE_DEFAULT,          
+        CREATEDBY,                     
+        CREATEDDATE                     
+        )           
+        SELECT                    
+        A.CCF_RULE_ID,                    
+        C.DEFAULT_DATE AS DOWNLOAD_DATE,                    
+        A.CCF_UNIQUE_ID,                    
+        A.CCF_UNIQUE_ID,                    
+        CUSTOMER_NAME,                    
+        A.FACILITY_NUMBER,                    
+        COALESCE(C.EQV_AT_DEFAULT, 0) * D.RATE_AMOUNT AS EQV_AT_DEFAULT,                    
+        COALESCE(C.EQV_PLAFOND_AT_DEFAULT, 0) * E.RATE_AMOUNT AS EQV_PLAFOND_AT_DEFAULT,                    
+        COALESCE(C.EQV_PLAFOND_12M_BEFORE_DEFAULT, 0) * E.RATE_AMOUNT AS EQV_PLAFOND_12M_BEFORE_DEFAULT,                    
+        COALESCE(C.EQV_OS_12M_BEFORE_DEFAULT, 0) * D.RATE_AMOUNT AS EQV_OS_12M_BEFORE_DEFAULT,          
+        ''SP_IFRS_IMP_EAD_CCF_DETAIL'' AS CREATEDBY,                     
+        GETDATE()          
+        FROM ' || V_TABLEINSERT6 || ' A          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B ON A.CCF_RULE_ID = B.PKID           
+        JOIN VW_IFRS_FIRST_DEFAULT C ON A.CCF_UNIQUE_ID = CASE B.CALC_METHOD WHEN ''CUSTOMER'' THEN C.CUSTOMER_NUMBER WHEN ''ACCOUNT'' THEN C.MASTERID WHEN ''FACILITY'' THEN C.FACILITY_NUMBER END                     
+        AND B.DEFAULT_RULE_ID = C.RULE_ID AND A.DOWNLOAD_DATE = C.DEFAULT_DATE          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE D ON A.DOWNLOAD_DATE = D.DOWNLOAD_DATE AND COALESCE(A.CURRENCY, ''IDR'') = D.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE E ON A.DOWNLOAD_DATE = E.DOWNLOAD_DATE AND COALESCE(A.LIMIT_CURRENCY, COALESCE(A.CURRENCY, ''IDR'')) = E.CURRENCY          
+        WHERE B.CALC_METHOD = ''ACCOUNT''          
+        AND A.RULE_TYPE = ''CCF_SEGMENT''           
+        AND C.DEFAULT_DATE >= B.CUT_OFF_DATE           
+        AND C.DEFAULT_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND A.LAG_1MONTH_FLAG = 1          
+        UNION ALL          
+        SELECT                    
+        A.CCF_RULE_ID,                    
+        C.DEFAULT_DATE AS DOWNLOAD_DATE,                    
+        A.CCF_UNIQUE_ID,                    
+        A.CCF_UNIQUE_ID,                    
+        CUSTOMER_NAME,                    
+        A.FACILITY_NUMBER,                    
+        COALESCE(C.EQV_AT_DEFAULT, 0) * D.RATE_AMOUNT AS EQV_AT_DEFAULT,                    
+        COALESCE(C.EQV_PLAFOND_AT_DEFAULT, 0) * E.RATE_AMOUNT AS EQV_PLAFOND_AT_DEFAULT,                    
+        COALESCE(C.EQV_PLAFOND_12M_BEFORE_DEFAULT, 0) * E.RATE_AMOUNT AS EQV_PLAFOND_12M_BEFORE_DEFAULT,                    
+        COALESCE(C.EQV_OS_12M_BEFORE_DEFAULT, 0) * D.RATE_AMOUNT AS EQV_OS_12M_BEFORE_DEFAULT,          
+        ''SP_IFRS_IMP_EAD_CCF_DETAIL'' AS CREATEDBY,                     
+        GETDATE()          
+        FROM ' || V_TABLEINSERT6 || ' A          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B ON A.CCF_RULE_ID = B.PKID           
+        JOIN VW_IFRS_FIRST_DEFAULT_NOLAG C ON A.CCF_UNIQUE_ID = CASE B.CALC_METHOD WHEN ''CUSTOMER'' THEN C.CUSTOMER_NUMBER WHEN ''ACCOUNT'' THEN C.MASTERID WHEN ''FACILITY'' THEN C.FACILITY_NUMBER END                     
+        AND B.DEFAULT_RULE_ID = C.RULE_ID AND A.DOWNLOAD_DATE = C.DEFAULT_DATE          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE D ON A.DOWNLOAD_DATE = D.DOWNLOAD_DATE AND COALESCE(A.CURRENCY, ''IDR'') = D.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE E ON A.DOWNLOAD_DATE = E.DOWNLOAD_DATE AND COALESCE(A.LIMIT_CURRENCY, COALESCE(A.CURRENCY, ''IDR'')) = E.CURRENCY          
+        WHERE B.CALC_METHOD = ''ACCOUNT''          
+        AND A.RULE_TYPE = ''CCF_SEGMENT''           
+        AND C.DEFAULT_DATE >= B.CUT_OFF_DATE           
+        AND C.DEFAULT_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND A.LAG_1MONTH_FLAG = 0';
+        EXECUTE (V_STR_QUERY);
+
+        GET DIAGNOSTICS V_RETURNROWS = ROW_COUNT;
+        V_RETURNROWS2 := V_RETURNROWS2 + V_RETURNROWS;
+        V_RETURNROWS := 0;
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS MIN12DATEACC_' || P_RUNID || '';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT               
+        A.DOWNLOAD_DATE,              
+        MIN(B.DOWNLOAD_DATE) AS MIN_12M_DATE,          
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,                    
+        B.CCF_UNIQUE_ID
+        FROM IFRS_EAD_CCF_DETAIL A           
+        JOIN ' || V_TABLEINSERT6 || ' B ON A.CCF_UNIQUE_ID = B.CCF_UNIQUE_ID AND A.CCF_RULE_ID = B.CCF_RULE_ID          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' C ON B.DEFAULT_RULE_ID = C.DEFAULT_RULE_ID AND B.CCF_RULE_ID = C.PKID          
+        WHERE B.DOWNLOAD_DATE BETWEEN F_EOMONTH(A.DOWNLOAD_DATE, 12, ''M'', ''PREV'') AND F_EOMONTH(A.DOWNLOAD_DATE, 1, ''M'', ''PREV'')              
+        AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND B.OUTSTANDING > 0              
+        GROUP BY               
+        A.DOWNLOAD_DATE,              
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,          
+        B.CCF_UNIQUE_ID';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || ';WITH CTE           
+        (          
+        CCF_RULE_ID,          
+        RULE_ID,          
+        DEFAULT_DATE,           
+        CCF_UNIQUE_ID,           
+        PLAFOND_12M_BEFORE_DEFAULT,          
+        EQV_PLAFOND_12M_BEFORE_DEFAULT,           
+        OS_12M_BEFORE_DEFAULT,          
+        EQV_OS_12M_BEFORE_DEFAULT,          
+        LAG_1MONTH_FLAG,          
+        RN          
+        )          
+        AS                    
+        (                      
+        SELECT              
+        B.CCF_RULE_ID,              
+        A.RULE_ID,          
+        A.DOWNLOAD_DATE,           
+        B.CCF_UNIQUE_ID,           
+        COALESCE(B.PLAFOND, 0) AS PLAFOND_12M_BEFORE_DEFAULT,           
+        COALESCE(B.PLAFOND, 0) * COALESCE(F.RATE_AMOUNT, 0) EQV_PLAFOND_12M_BEFORE_DEFAULT,           
+        COALESCE(B.OUTSTANDING, 0) AS OS_12M_BEFORE_DEFAULT,           
+        COALESCE(B.OUTSTANDING, 0) * COALESCE(E.RATE_AMOUNT, 0) EQV_OS_12M_BEFORE_DEFAULT,          
+        C.LAG_1MONTH_FLAG,          
+        ROW_NUMBER() OVER (PARTITION BY A.RULE_ID, B.CCF_UNIQUE_ID ORDER BY B.DOWNLOAD_DATE) RN              
+        FROM IFRS_DEFAULT A                    
+        JOIN ' || V_TABLEINSERT6 || ' B ON CASE B.CALC_METHOD WHEN ''CUSTOMER'' THEN A.CUSTOMER_NUMBER WHEN ''ACCOUNT'' THEN A.MASTERID WHEN ''FACILITY'' THEN A.FACILITY_NUMBER END = B.CCF_UNIQUE_ID                       
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' C ON A.RULE_ID = C.DEFAULT_RULE_ID AND B.CCF_RULE_ID = C.PKID              
+        JOIN MIN12DATEACC_' || P_RUNID || ' D ON A.ACCOUNT_NUMBER = D.CCF_UNIQUE_ID AND B.DEFAULT_RULE_ID = D.DEFAULT_RULE_ID          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE E ON F_EOMONTH(A.DOWNLOAD_DATE, 0, ''M'', ''PREV'') = E.DOWNLOAD_DATE AND COALESCE(B.CURRENCY, ''IDR'') = E.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE F ON F_EOMONTH(A.DOWNLOAD_DATE, 0, ''M'', ''PREV'') = F.DOWNLOAD_DATE AND COALESCE(B.LIMIT_CURRENCY, COALESCE(B.CURRENCY, ''IDR'')) = F.CURRENCY          
+        WHERE B.DOWNLOAD_DATE = D.MIN_12M_DATE          
+        AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND C.LAG_1MONTH_FLAG = 1          
+        )          
+        UPDATE A           
+        SET                    
+        A.EQV_PLAFOND_12M_BEFORE_DEFAULT = B.EQV_PLAFOND_12M_BEFORE_DEFAULT,                 
+        A.EQV_OS_12M_BEFORE_DEFAULT = B.EQV_OS_12M_BEFORE_DEFAULT          
+        FROM IFRS_EAD_CCF_DETAIL A          
+        INNER JOIN CTE B ON A.CCF_UNIQUE_ID = B.CCF_UNIQUE_ID          
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID           
+        AND A.DOWNLOAD_DATE = B.DEFAULT_DATE           
+        WHERE RN = 1 AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || ';WITH CTE           
+        (          
+        CCF_RULE_ID,          
+        RULE_ID,          
+        DEFAULT_DATE,           
+        CCF_UNIQUE_ID,           
+        PLAFOND_12M_BEFORE_DEFAULT,          
+        EQV_PLAFOND_12M_BEFORE_DEFAULT,           
+        OS_12M_BEFORE_DEFAULT,          
+        EQV_OS_12M_BEFORE_DEFAULT,          
+        LAG_1MONTH_FLAG,          
+        RN          
+        )          
+        AS                    
+        (                      
+        SELECT              
+        B.CCF_RULE_ID,              
+        A.RULE_ID,          
+        A.DOWNLOAD_DATE,           
+        B.CCF_UNIQUE_ID,           
+        COALESCE(B.PLAFOND, 0) AS PLAFOND_12M_BEFORE_DEFAULT,           
+        COALESCE(B.PLAFOND, 0) * COALESCE(F.RATE_AMOUNT, 0) EQV_PLAFOND_12M_BEFORE_DEFAULT,           
+        COALESCE(B.OUTSTANDING, 0) AS OS_12M_BEFORE_DEFAULT,           
+        COALESCE(B.OUTSTANDING, 0) * COALESCE(E.RATE_AMOUNT, 0) EQV_OS_12M_BEFORE_DEFAULT,          
+        B.LAG_1MONTH_FLAG,          
+        ROW_NUMBER() OVER (PARTITION BY A.RULE_ID, B.CCF_UNIQUE_ID ORDER BY B.DOWNLOAD_DATE) RN                       
+        FROM IFRS_DEFAULT_NOLAG A                    
+        JOIN ' || V_TABLEINSERT6 || ' B ON CASE B.CALC_METHOD WHEN ''CUSTOMER'' THEN A.CUSTOMER_NUMBER WHEN ''ACCOUNT'' THEN A.MASTERID WHEN ''FACILITY'' THEN A.FACILITY_NUMBER END = B.CCF_UNIQUE_ID                       
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' C ON A.RULE_ID = C.DEFAULT_RULE_ID AND B.CCF_RULE_ID = C.PKID              
+        JOIN MIN12DATEACC_' || P_RUNID || ' D ON A.ACCOUNT_NUMBER = D.CCF_UNIQUE_ID AND B.DEFAULT_RULE_ID = D.DEFAULT_RULE_ID          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE E ON F_EOMONTH(A.DOWNLOAD_DATE, 0, ''M'', ''PREV'') = E.DOWNLOAD_DATE AND COALESCE(B.CURRENCY, ''IDR'') = E.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE F ON F_EOMONTH(A.DOWNLOAD_DATE, 0, ''M'', ''PREV'') = F.DOWNLOAD_DATE AND COALESCE(B.LIMIT_CURRENCY, COALESCE(B.CURRENCY, ''IDR'')) = F.CURRENCY          
+        WHERE B.DOWNLOAD_DATE = D.MIN_12M_DATE          
+        AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND C.LAG_1MONTH_FLAG = 0          
+        )          
+        UPDATE A           
+        SET                    
+        A.EQV_PLAFOND_12M_BEFORE_DEFAULT = B.EQV_PLAFOND_12M_BEFORE_DEFAULT,                    
+        A.EQV_OS_12M_BEFORE_DEFAULT = B.EQV_OS_12M_BEFORE_DEFAULT          
+        FROM IFRS_EAD_CCF_DETAIL A                       
+        INNER JOIN CTE B ON A.CCF_UNIQUE_ID = B.CCF_UNIQUE_ID          
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID           
+        AND A.DOWNLOAD_DATE = B.DEFAULT_DATE           
+        WHERE RN = 1 AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DELETE FROM IFRS_EAD_CCF_DETAIL A          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B WHERE A.CCF_RULE_ID = B.PKID          
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END            
+        AND (EQV_OS_12M_BEFORE_DEFAULT IS NULL AND EQV_PLAFOND_12M_BEFORE_DEFAULT IS NULL)';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL A          
+        SET EXCLUDE = 1           
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B           
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EQV_OS_12M_BEFORE_DEFAULT = 0           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL A           
+        SET EXCLUDE = CASE WHEN B.OS_DEF_ZERO_EXCLUDE = 0 THEN 0 ELSE 1 END          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EQV_AT_DEFAULT <= 0          
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL A           
+        SET EXCLUDE = 1          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EQV_OS_12M_BEFORE_DEFAULT >= EQV_PLAFOND_12M_BEFORE_DEFAULT           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL A          
+        SET DRAWDOWN = CAST((EQV_AT_DEFAULT - EQV_OS_12M_BEFORE_DEFAULT) AS DOUBLE PRECISION) / EQV_PLAFOND_12M_BEFORE_DEFAULT,           
+        HEADROOM = (EQV_PLAFOND_12M_BEFORE_DEFAULT - EQV_OS_12M_BEFORE_DEFAULT) / EQV_PLAFOND_12M_BEFORE_DEFAULT          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID                   
+        AND EXCLUDE = 0 AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL A           
+        SET EXCLUDE = CASE WHEN B.HEADROOM_ZERO_EXCLUDE = 0 THEN 0 ELSE 1 END           
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND COALESCE(HEADROOM, 0) <= 0           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL A          
+        SET CCF = CASE WHEN HEADROOM = 0 THEN NULL ELSE CASE WHEN DRAWDOWN / HEADROOM > 1 THEN 1 ELSE CASE WHEN DRAWDOWN / HEADROOM < 0 THEN 0 ELSE DRAWDOWN / HEADROOM END END END          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EXCLUDE = 0
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+    END IF;
+
+    EXECUTE 'SELECT CALC_METHOD FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' WHERE CALC_METHOD = ''CUSTOMER'' ' INTO V_CALC_METHOD;
+
+    IF COALESCE(V_CALC_METHOD, NULL) IS NOT NULL THEN
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DELETE FROM IFRS_EAD_CCF_DETAIL_CIF A          
+        USING TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'INSERT INTO IFRS_EAD_CCF_DETAIL_CIF                    
+        (           
+        CCF_RULE_ID,                    
+        DOWNLOAD_DATE,           
+        CUSTOMER_NUMBER,            
+        CUSTOMER_NAME,                    
+        EQV_AT_DEFAULT,                    
+        EQV_PLAFOND_AT_DEFAULT,                      
+        CREATEDBY                      
+        )           
+        SELECT           
+        A.CCF_RULE_ID,          
+        A.DOWNLOAD_DATE,          
+        A.CCF_UNIQUE_ID,          
+        CUSTOMER_NAME,          
+        OUTSTANDING * C.RATE_AMOUNT AS OUTSTANDING,          
+        PLAFOND * D.RATE_AMOUNT AS PLAFOND,          
+        ''SP_IFRS_IMP_EAD_CCF_DETAIL'' AS CREATEDBY          
+        FROM ' || V_TABLEINSERT6 || ' A          
+        JOIN          
+        (                       
+        SELECT           
+        PKID AS CCF_RULE_ID,           
+        RULE_ID,           
+        MIN(DEFAULT_DATE) DEFAULT_DATE,          
+        CUSTOMER_NUMBER           
+        FROM VW_IFRS_FIRST_DEFAULT X          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' Y ON X.RULE_ID = Y.DEFAULT_RULE_ID          
+        WHERE X.DEFAULT_DATE >= Y.CUT_OFF_DATE          
+        GROUP BY PKID, RULE_ID, CUSTOMER_NUMBER          
+        ) B ON A.DEFAULT_RULE_ID = B.RULE_ID                     
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID                     
+        AND A.DOWNLOAD_DATE = B.DEFAULT_DATE                     
+        AND A.CCF_UNIQUE_ID = B.CUSTOMER_NUMBER          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE C ON A.DOWNLOAD_DATE = C.DOWNLOAD_DATE AND COALESCE(A.CURRENCY, ''IDR'') = C.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE D ON A.DOWNLOAD_DATE = D.DOWNLOAD_DATE AND COALESCE(A.LIMIT_CURRENCY, COALESCE(A.CURRENCY, ''IDR'')) = D.CURRENCY          
+        WHERE A.DOWNLOAD_DATE = CASE A.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND A.LAG_1MONTH_FLAG = 1          
+        UNION ALL          
+        SELECT           
+        A.CCF_RULE_ID,          
+        A.DOWNLOAD_DATE,          
+        A.CCF_UNIQUE_ID,          
+        CUSTOMER_NAME,          
+        OUTSTANDING * C.RATE_AMOUNT AS OUTSTANDING,          
+        PLAFOND * D.RATE_AMOUNT AS PLAFOND,          
+        ''SP_IFRS_IMP_EAD_CCF_DETAIL'' AS CREATEDBY          
+        FROM ' || V_TABLEINSERT6 || ' A          
+        JOIN          
+        (                       
+        SELECT           
+        PKID AS CCF_RULE_ID,           
+        RULE_ID,           
+        MIN(DEFAULT_DATE) DEFAULT_DATE,           
+        CUSTOMER_NUMBER           
+        FROM VW_IFRS_FIRST_DEFAULT_NOLAG X          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' Y ON X.RULE_ID = Y.DEFAULT_RULE_ID          
+        WHERE X.DEFAULT_DATE >= Y.CUT_OFF_DATE          
+        GROUP BY PKID, RULE_ID, CUSTOMER_NUMBER          
+        ) B ON A.DEFAULT_RULE_ID = B.RULE_ID                     
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID                     
+        AND A.DOWNLOAD_DATE = B.DEFAULT_DATE                     
+        AND A.CCF_UNIQUE_ID = B.CUSTOMER_NUMBER          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE C ON A.DOWNLOAD_DATE = C.DOWNLOAD_DATE AND COALESCE(A.CURRENCY, ''IDR'') = C.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE D ON A.DOWNLOAD_DATE = D.DOWNLOAD_DATE AND COALESCE(A.LIMIT_CURRENCY, COALESCE(A.CURRENCY, ''IDR'')) = D.CURRENCY          
+        WHERE A.DOWNLOAD_DATE = CASE A.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END         
+        AND A.LAG_1MONTH_FLAG = 0';
+        EXECUTE (V_STR_QUERY);
+
+        GET DIAGNOSTICS V_RETURNROWS3 = ROW_COUNT;
+        V_RETURNROWS4 := V_RETURNROWS4 + V_RETURNROWS3;
+        V_RETURNROWS3 := 0;
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS MIN12DATECIF_' || P_RUNID || '';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE MIN12DATECIF_' || P_RUNID || ' AS 
+        SELECT               
+        A.DOWNLOAD_DATE,              
+        MIN(B.DOWNLOAD_DATE) AS MIN_12M_DATE,          
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,                    
+        B.CCF_UNIQUE_ID
+        FROM IFRS_EAD_CCF_DETAIL_CIF A           
+        JOIN ' || V_TABLEINSERT6 || ' BON A.CUSTOMER_NUMBER = B.CCF_UNIQUE_ID AND A.CCF_RULE_ID = B.CCF_RULE_ID          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' CON B.DEFAULT_RULE_ID = C.DEFAULT_RULE_ID AND B.CCF_RULE_ID = C.PKID          
+        WHERE B.DOWNLOAD_DATE BETWEEN F_EOMONTH(A.DOWNLOAD_DATE, 12, ''M'', ''PREV'') AND F_EOMONTH(A.DOWNLOAD_DATE, 1, ''M'', ''PREV'')          
+        AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END   
+        AND B.OUTSTANDING > 0              
+        GROUP BY               
+        A.DOWNLOAD_DATE,              
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,          
+        B.CCF_UNIQUE_ID';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS 12MCIF_' || P_RUNID || '';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE 12MCIF_' || P_RUNID || ' AS 
+        SELECT          
+        CCF_RULE_ID,          
+        DEFAULT_RULE_ID,          
+        DOWNLOAD_DATE,          
+        CCF_UNIQUE_ID,          
+        SUM(EQV_PLAFOND_12M_BEFORE_DEFAULT) AS EQV_PLAFOND_12M_BEFORE_DEFAULT,          
+        SUM(EQV_OS_12M_BEFORE_DEFAULT) AS EQV_OS_12M_BEFORE_DEFAULT
+        FROM          
+        (          
+        SELECT          
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,                      
+        A.DOWNLOAD_DATE,                       
+        B.CCF_UNIQUE_ID,                      
+        B.FACILITY_NUMBER,          
+        MAX(COALESCE(B.PLAFOND, 0) * COALESCE(F.RATE_AMOUNT, 0)) EQV_PLAFOND_12M_BEFORE_DEFAULT,          
+        SUM(COALESCE(B.OUTSTANDING, 0) * COALESCE(E.RATE_AMOUNT, 0)) EQV_OS_12M_BEFORE_DEFAULT                      
+        FROM IFRS_EAD_CCF_DETAIL_CIF A           
+        JOIN ' || V_TABLEINSERT6 || ' B ON A.CUSTOMER_NUMBER = B.CCF_UNIQUE_ID AND A.CCF_RULE_ID = B.CCF_RULE_ID          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' C ON B.DEFAULT_RULE_ID = C.DEFAULT_RULE_ID AND B.CCF_RULE_ID = C.PKID              
+        JOIN MIN12DATECIF_' || P_RUNID || ' D ON A.CUSTOMER_NUMBER = D.CCF_UNIQUE_ID AND A.CCF_RULE_ID = D.CCF_RULE_ID AND B.DEFAULT_RULE_ID = D.DEFAULT_RULE_ID          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE E ON F_EOMONTH(A.DOWNLOAD_DATE, 0, ''M'', ''PREV'') = E.DOWNLOAD_DATE AND COALESCE(B.CURRENCY, ''IDR'') = E.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE F ON F_EOMONTH(A.DOWNLOAD_DATE, 1, ''M'', ''PREV'') = F.DOWNLOAD_DATE AND COALESCE(B.LIMIT_CURRENCY, COALESCE(B.CURRENCY, ''IDR'')) = F.CURRENCY          
+        WHERE B.DOWNLOAD_DATE = D.MIN_12M_DATE           
+        AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        GROUP BY           
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,          
+        A.DOWNLOAD_DATE,          
+        B.CCF_UNIQUE_ID,          
+        B.FACILITY_NUMBER          
+        ) X          
+        GROUP BY           
+        CCF_RULE_ID,          
+        DEFAULT_RULE_ID,          
+        DOWNLOAD_DATE,          
+        CCF_UNIQUE_ID';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_CIF A           
+        SET EQV_PLAFOND_12M_BEFORE_DEFAULT = B.EQV_PLAFOND_12M_BEFORE_DEFAULT,                    
+        EQV_OS_12M_BEFORE_DEFAULT = B.EQV_OS_12M_BEFORE_DEFAULT          
+        FROM 12MCIF_' || P_RUNID || ' AS B, TMP_CCF_RULES_CONFIG_' || P_RUNID || ' AS C WHERE A.CCF_RULE_ID = C.PKID
+        AND A.CUSTOMER_NUMBER = B.CCF_UNIQUE_ID          
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID           
+        AND A.DOWNLOAD_DATE = B.DOWNLOAD_DATE            
+        AND A.DOWNLOAD_DATE = CASE C.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DELETE FROM IFRS_EAD_CCF_DETAIL_CIF A          
+        USING TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END           
+        AND (EQV_OS_12M_BEFORE_DEFAULT IS NULL AND EQV_PLAFOND_12M_BEFORE_DEFAULT IS NULL)';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_CIF A           
+        SET EXCLUDE = 1          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID            
+        AND EQV_OS_12M_BEFORE_DEFAULT = 0           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_CIF A           
+        SET EXCLUDE = CASE WHEN B.OS_DEF_ZERO_EXCLUDE = 0 THEN 0 ELSE 1 END          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EQV_AT_DEFAULT <= 0 AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_CIF A          
+        SET EXCLUDE = 1           
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EQV_OS_12M_BEFORE_DEFAULT >= EQV_PLAFOND_12M_BEFORE_DEFAULT           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_CIF A          
+        SET DRAWDOWN = CAST((EQV_AT_DEFAULT - EQV_OS_12M_BEFORE_DEFAULT) AS DOUBLE PRECISION) / EQV_PLAFOND_12M_BEFORE_DEFAULT,           
+        HEADROOM = (EQV_PLAFOND_12M_BEFORE_DEFAULT - EQV_OS_12M_BEFORE_DEFAULT) / EQV_PLAFOND_12M_BEFORE_DEFAULT           
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID                 
+        AND EXCLUDE = 0 AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_CIF A           
+        SET EXCLUDE = CASE WHEN B.HEADROOM_ZERO_EXCLUDE = 0 THEN 0 ELSE 1 END           
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND COALESCE(HEADROOM, 0) <= 0 AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_CIF A          
+        SET CCF = CASE WHEN HEADROOM = 0 THEN NULL ELSE CASE WHEN DRAWDOWN / HEADROOM > 1 THEN 1 ELSE CASE WHEN DRAWDOWN / HEADROOM < 0 THEN 0 ELSE DRAWDOWN / HEADROOM END END END          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EXCLUDE = 0 AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+    END IF;
+
+    EXECUTE 'SELECT CALC_METHOD FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' WHERE CALC_METHOD = ''FACILITY'' 
+    AND EXISTS( SELECT CURRDATE FROM IFRS_PRC_DATE WHERE EXTRACT(YEAR FROM ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE)>=''2023'')' INTO V_CALC_METHOD;
+
+    IF COALESCE(V_CALC_METHOD, NULL) IS NOT NULL THEN
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DELETE FROM IFRS_EAD_CCF_DETAIL_FACILITY A          
+        USING TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND DOWNLOAD_DATE = ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'INSERT INTO IFRS_EAD_CCF_DETAIL_FACILITY                    
+        (           
+        CCF_RULE_ID,                    
+        DOWNLOAD_DATE,           
+        FACILITY_NUMBER,            
+        CUSTOMER_NAME,                    
+        EQV_AT_DEFAULT,                    
+        EQV_PLAFOND_AT_DEFAULT,                      
+        CREATEDBY                      
+        )           
+        SELECT           
+        A.CCF_RULE_ID,          
+        A.DOWNLOAD_DATE,          
+        A.CCF_UNIQUE_ID,          
+        CUSTOMER_NAME,          
+        OUTSTANDING * C.RATE_AMOUNT AS OUTSTANDING,          
+        PLAFOND * D.RATE_AMOUNT AS PLAFOND,          
+        ''SP_IFRS_IMP_EAD_CCF_DETAIL'' AS CREATEDBY          
+        FROM ' || V_TABLEINSERT6 || ' A          
+        JOIN          
+        (                       
+        SELECT           
+        PKID AS CCF_RULE_ID,           
+        RULE_ID,          
+        MIN(DEFAULT_DATE) DEFAULT_DATE,           
+        FACILITY_NUMBER          
+        FROM VW_IFRS_FIRST_DEFAULT X          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' Y ON X.RULE_ID = Y.DEFAULT_RULE_ID          
+        WHERE X.DEFAULT_DATE >= Y.CUT_OFF_DATE          
+        GROUP BY PKID, RULE_ID, FACILITY_NUMBER          
+        ) B ON A.DEFAULT_RULE_ID = B.RULE_ID                     
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID                     
+        AND A.DOWNLOAD_DATE = B.DEFAULT_DATE                     
+        AND A.CCF_UNIQUE_ID = B.FACILITY_NUMBER          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE C ON EOMONTH(A.DOWNLOAD_DATE) = C.DOWNLOAD_DATE AND COALESCE(A.CURRENCY, ''IDR'') = C.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE D ON EOMONTH(A.DOWNLOAD_DATE) = D.DOWNLOAD_DATE AND COALESCE(A.LIMIT_CURRENCY, COALESCE(A.CURRENCY, ''IDR'')) = D.CURRENCY          
+        WHERE A.DOWNLOAD_DATE = CASE A.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND A.LAG_1MONTH_FLAG = 1          
+        UNION ALL          
+        SELECT           
+        A.CCF_RULE_ID,          
+        A.DOWNLOAD_DATE,          
+        A.CCF_UNIQUE_ID,          
+        CUSTOMER_NAME,          
+        OUTSTANDING * C.RATE_AMOUNT AS OUTSTANDING,          
+        PLAFOND * D.RATE_AMOUNT AS PLAFOND,          
+        ''SP_IFRS_IMP_EAD_CCF_DETAIL'' AS CREATEDBY          
+        FROM ' || V_TABLEINSERT6 || ' A          
+        JOIN          
+        (                       
+        SELECT           
+        PKID AS CCF_RULE_ID,           
+        RULE_ID,           
+        MIN(DOWNLOAD_DATE) DEFAULT_DATE,           
+        FACILITY_NUMBER           
+        FROM IFRS_DEFAULT_NOLAG X          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' Y ON X.RULE_ID = Y.DEFAULT_RULE_ID          
+        WHERE X.DOWNLOAD_DATE >= Y.CUT_OFF_DATE          
+        GROUP BY PKID, RULE_ID, FACILITY_NUMBER          
+        ) B ON A.DEFAULT_RULE_ID = B.RULE_ID                     
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID             
+        AND A.DOWNLOAD_DATE = B.DEFAULT_DATE                     
+        AND A.CCF_UNIQUE_ID = B.FACILITY_NUMBER          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE C ON EOMONTH(A.DOWNLOAD_DATE) = C.DOWNLOAD_DATE AND COALESCE(A.CURRENCY, ''IDR'') = C.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE D ON EOMONTH(A.DOWNLOAD_DATE) = D.DOWNLOAD_DATE AND COALESCE(A.LIMIT_CURRENCY, COALESCE(A.CURRENCY, ''IDR'')) = D.CURRENCY          
+        WHERE A.DOWNLOAD_DATE = CASE A.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND A.LAG_1MONTH_FLAG = 0';
+        EXECUTE (V_STR_QUERY);
+
+        GET DIAGNOSTICS V_RETURNROWS5 = ROW_COUNT;
+        V_RETURNROWS6 := V_RETURNROWS6 + V_RETURNROWS5;
+        V_RETURNROWS5 := 0;
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS MIN12DATEFAC_' || P_RUNID || '';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE MIN12DATEFAC_' || P_RUNID || ' AS 
+        SELECT               
+        A.DOWNLOAD_DATE,              
+        MIN(B.DOWNLOAD_DATE) AS MIN_12M_DATE,          
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,                    
+        B.CCF_UNIQUE_ID
+        FROM IFRS_EAD_CCF_DETAIL_FACILITY A           
+        JOIN ' || V_TABLEINSERT6 || ' B ON A.FACILITY_NUMBER = B.CCF_UNIQUE_ID AND A.CCF_RULE_ID = B.CCF_RULE_ID          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' C ON B.DEFAULT_RULE_ID = C.DEFAULT_RULE_ID AND B.CCF_RULE_ID = C.PKID          
+        WHERE B.DOWNLOAD_DATE BETWEEN F_EOMONTH(A.DOWNLOAD_DATE, 12, ''M'', ''PREV'') AND F_EOMONTH(A.DOWNLOAD_DATE, 1, ''M'', ''PREV'')           
+        AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        AND B.OUTSTANDING > 0              
+        GROUP BY               
+        A.DOWNLOAD_DATE,              
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,          
+        B.CCF_UNIQUE_ID';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS 12MFAC_' || P_RUNID || '';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE 12MFAC_' || P_RUNID || ' AS 
+        SELECT          
+        CCF_RULE_ID,          
+        DEFAULT_RULE_ID,          
+        DOWNLOAD_DATE,          
+        CCF_UNIQUE_ID,          
+        SUM(EQV_PLAFOND_12M_BEFORE_DEFAULT) AS EQV_PLAFOND_12M_BEFORE_DEFAULT,          
+        SUM(EQV_OS_12M_BEFORE_DEFAULT) AS EQV_OS_12M_BEFORE_DEFAULT          
+        INTO #12MFAC          
+        FROM          
+        (          
+        SELECT          
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,                      
+        A.DOWNLOAD_DATE,                       
+        B.CCF_UNIQUE_ID,                      
+        B.FACILITY_NUMBER,          
+        MAX(COALESCE(B.PLAFOND, 0) * COALESCE(F.RATE_AMOUNT, 0)) EQV_PLAFOND_12M_BEFORE_DEFAULT,          
+        SUM(COALESCE(B.OUTSTANDING, 0) * COALESCE(E.RATE_AMOUNT, 0)) EQV_OS_12M_BEFORE_DEFAULT                      
+        FROM IFRS_EAD_CCF_DETAIL_FACILITY A           
+        JOIN ' || V_TABLEINSERT6 || ' B ON A.FACILITY_NUMBER = B.CCF_UNIQUE_ID AND A.CCF_RULE_ID = B.CCF_RULE_ID          
+        JOIN TMP_CCF_RULES_CONFIG_' || P_RUNID || ' C ON B.DEFAULT_RULE_ID = C.DEFAULT_RULE_ID AND B.CCF_RULE_ID = C.PKID              
+        JOIN MIN12DATEFAC_' || P_RUNID || ' D ON A.FACILITY_NUMBER = D.CCF_UNIQUE_ID AND A.CCF_RULE_ID = D.CCF_RULE_ID AND B.DEFAULT_RULE_ID = D.DEFAULT_RULE_ID              
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE E ON F_EOMONTH(A.DOWNLOAD_DATE, 0, ''M'', ''PREV'') = E.DOWNLOAD_DATE AND COALESCE(B.CURRENCY, ''IDR'') = E.CURRENCY          
+        LEFT JOIN IFRS_MASTER_EXCHANGE_RATE F ON F_EOMONTH(A.DOWNLOAD_DATE, 0, ''M'', ''PREV'') = F.DOWNLOAD_DATE AND COALESCE(B.LIMIT_CURRENCY, COALESCE(B.CURRENCY, ''IDR'')) = F.CURRENCY          
+        WHERE B.DOWNLOAD_DATE = D.MIN_12M_DATE           
+        AND A.DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END          
+        GROUP BY           
+        B.CCF_RULE_ID,          
+        B.DEFAULT_RULE_ID,          
+        A.DOWNLOAD_DATE,          
+        B.CCF_UNIQUE_ID,          
+        B.FACILITY_NUMBER          
+        ) X          
+        GROUP BY           
+        CCF_RULE_ID,          
+        DEFAULT_RULE_ID,          
+        DOWNLOAD_DATE,          
+        CCF_UNIQUE_ID';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_FACILITY A           
+        SET EQV_PLAFOND_12M_BEFORE_DEFAULT = B.EQV_PLAFOND_12M_BEFORE_DEFAULT,                    
+        EQV_OS_12M_BEFORE_DEFAULT = B.EQV_OS_12M_BEFORE_DEFAULT,          
+        EXCLUDE = 0          
+        FROM 12MFAC_' || P_RUNID || ' AS B, TMP_CCF_RULES_CONFIG_' || P_RUNID || ' AS C          
+        WHERE A.CCF_RULE_ID = C.PKID
+        AND A.FACILITY_NUMBER = B.CCF_UNIQUE_ID          
+        AND A.CCF_RULE_ID = B.CCF_RULE_ID           
+        AND A.DOWNLOAD_DATE = B.DOWNLOAD_DATE          
+        AND A.DOWNLOAD_DATE = CASE C.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DELETE FROM IFRS_EAD_CCF_DETAIL_FACILITY A
+        USING TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END            
+        AND (EQV_OS_12M_BEFORE_DEFAULT IS NULL AND EQV_PLAFOND_12M_BEFORE_DEFAULT IS NULL)';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_FACILITY A           
+        SET EXCLUDE = 1          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EQV_OS_12M_BEFORE_DEFAULT = 0           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_FACILITY A           
+        SET EXCLUDE = CASE WHEN B.OS_DEF_ZERO_EXCLUDE = 0 THEN 0 ELSE 1 END          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EQV_AT_DEFAULT <= 0          
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_FACILITY A          
+        SET DRAWDOWN = CAST((EQV_AT_DEFAULT - EQV_OS_12M_BEFORE_DEFAULT) AS DOUBLE PRECISION) / EQV_PLAFOND_12M_BEFORE_DEFAULT,           
+        HEADROOM = (EQV_PLAFOND_12M_BEFORE_DEFAULT - EQV_OS_12M_BEFORE_DEFAULT) / EQV_PLAFOND_12M_BEFORE_DEFAULT          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID                   
+        AND EXCLUDE = 0 AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_FACILITY A           
+        SET EXCLUDE = CASE WHEN B.HEADROOM_ZERO_EXCLUDE = 0 THEN 0 ELSE 1 END           
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        WHERE COALESCE(HEADROOM, 0) <= 0          
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'UPDATE IFRS_EAD_CCF_DETAIL_FACILITY A          
+        SET CCF = CASE WHEN HEADROOM = 0 THEN 1 ELSE CASE WHEN DRAWDOWN / HEADROOM > 1 THEN 1 ELSE CASE WHEN DRAWDOWN / HEADROOM < 0 THEN 0 ELSE DRAWDOWN / HEADROOM END END END          
+        FROM TMP_CCF_RULES_CONFIG_' || P_RUNID || ' B          
+        WHERE A.CCF_RULE_ID = B.PKID          
+        AND EXCLUDE = 0           
+        AND DOWNLOAD_DATE = CASE B.LAG_1MONTH_FLAG WHEN 0 THEN ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE WHEN 1 THEN ''' || CAST(V_PREVMONTH AS VARCHAR(10)) || '''::DATE END';
+        EXECUTE (V_STR_QUERY);
+
+    END IF;
+
+    RAISE NOTICE 'SP_IFRS_IMP_EAD_CCF_DETAIL | AFFECTED RECORD : %', V_RETURNROWS2;
+    -------- ====== BODY ======
+
+    -------- ====== LOG ======
+    V_TABLEDEST = V_TABLEINSERT2;
+    V_COLUMNDEST = '-';
+    V_SPNAME = 'SP_IFRS_IMP_EAD_CCF_DETAIL';
+    V_OPERATION = 'INSERT';
+
+    IF V_RETURNROWS2 > 0 THEN
+        CALL SP_IFRS_EXEC_AND_LOG(V_CURRDATE, V_TABLEDEST, V_COLUMNDEST, V_SPNAME, V_OPERATION, V_RETURNROWS2, P_RUNID);
+    END IF;
+
+    V_TABLEDEST = V_TABLEINSERT3;
+    V_COLUMNDEST = '-';
+    V_SPNAME = 'SP_IFRS_IMP_EAD_CCF_DETAIL';
+    V_OPERATION = 'INSERT';
+
+    CALL SP_IFRS_EXEC_AND_LOG(V_CURRDATE, V_TABLEDEST, V_COLUMNDEST, V_SPNAME, V_OPERATION, V_RETURNROWS4, P_RUNID);
+
+    V_TABLEDEST = V_TABLEINSERT4;
+    V_COLUMNDEST = '-';
+    V_SPNAME = 'SP_IFRS_IMP_EAD_CCF_DETAIL';
+    V_OPERATION = 'INSERT';
+
+    IF V_RETURNROWS6 > 0 THEN
+        CALL SP_IFRS_EXEC_AND_LOG(V_CURRDATE, V_TABLEDEST, V_COLUMNDEST, V_SPNAME, V_OPERATION, V_RETURNROWS6, P_RUNID);
+    END IF;
+    -------- ====== LOG ======
+
+    -------- ====== RESULT ======
+    V_QUERYS = 'SELECT * FROM ' || V_TABLEINSERT3 || '';
+    CALL SP_IFRS_RESULT_PREV(V_CURRDATE, V_QUERYS, V_SPNAME, V_RETURNROWS4, P_RUNID);
+    -------- ====== RESULT ======
+
+END;
+
+$$;
