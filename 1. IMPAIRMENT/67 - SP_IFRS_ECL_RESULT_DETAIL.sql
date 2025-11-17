@@ -139,19 +139,35 @@ BEGIN
         EXECUTE (V_STR_QUERY);
 
         V_STR_QUERY := '';
-        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE IF NOT EXISTS ' || V_TABLEINSERT3 || ' AS SELECT * FROM IFRS_ECL_RESULT_DETAIL WHERE 0=1';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT3 || ' ';
         EXECUTE (V_STR_QUERY);
 
         V_STR_QUERY := '';
-        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE IF NOT EXISTS ' || V_TABLEINSERT4 || ' AS SELECT * FROM IFRS_ECL_RESULT_HEADER WHERE 0=1';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT DUPLICATE_TABLE(LOWER(''IFRS_ECL_RESULT_DETAIL''),LOWER(''' || V_TABLEINSERT3 || '''), FALSE)';
         EXECUTE (V_STR_QUERY);
 
         V_STR_QUERY := '';
-        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE IF NOT EXISTS ' || V_TABLEINSERT5 || ' AS SELECT * FROM IFRS_EAD_TERM_YEARLY';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT4 || ' ';
         EXECUTE (V_STR_QUERY);
 
         V_STR_QUERY := '';
-        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE IF NOT EXISTS ' || V_TABLEINSERT6 || ' AS SELECT * FROM IFRS_EAD_TERM_YEARLY_CC';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT DUPLICATE_TABLE(LOWER(''IFRS_ECL_RESULT_HEADER''),LOWER(''' || V_TABLEINSERT4 || '''), FALSE)';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT5 || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT DUPLICATE_TABLE(LOWER(''IFRS_EAD_TERM_YEARLY''),LOWER(''' || V_TABLEINSERT5 || '''), TRUE)';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT6 || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT DUPLICATE_TABLE(LOWER(''IFRS_EAD_TERM_YEARLY_CC''),LOWER(''' || V_TABLEINSERT6 || '''), TRUE)';
         EXECUTE (V_STR_QUERY);
     END IF;
 
@@ -170,7 +186,7 @@ BEGIN
     V_STR_QUERY := '';
     V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE TMP_IFRS_ECL_MODEL_ECL_' || P_RUNID || ' AS
       SELECT DISTINCT      
-      A.PKID AS ECL_MODEL_ID,      
+      A.PKID AS EIL_MODEL_ID,      
       B.EAD_MODEL_ID,      
       B.SEGMENTATION_ID,      
       C.CCF_FLAG,      
@@ -191,11 +207,11 @@ BEGIN
       ELSE ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE      
       END AS PD_DATE    
     FROM IFRS_ECL_MODEL_HEADER A      
-    JOIN IFRS_ECL_MODEL_DETAIL_EAD B ON A.PKID = B.ECL_MODEL_ID      
+    JOIN IFRS_ECL_MODEL_DETAIL_EAD B ON A.PKID = B.EIL_MODEL_ID      
     JOIN ' || V_TABLEEADCONFIG || ' C ON B.EAD_MODEL_ID = C.PKID      
-    JOIN IFRS_ECL_MODEL_DETAIL_LGD D ON A.PKID = D.ECL_MODEL_ID AND B.SEGMENTATION_ID = D.SEGMENTATION_ID      
-    JOIN IFRS_ECL_MODEL_DETAIL_PD E ON A.PKID = E.ECL_MODEL_ID AND B.SEGMENTATION_ID = E.SEGMENTATION_ID      
-    JOIN IFRS_ECL_MODEL_DETAIL_PF F ON A.PKID = F.ECL_MODEL_ID      
+    JOIN IFRS_ECL_MODEL_DETAIL_LGD D ON A.PKID = D.EIL_MODEL_ID AND B.SEGMENTATION_ID = D.SEGMENTATION_ID      
+    JOIN IFRS_ECL_MODEL_DETAIL_PD E ON A.PKID = E.EIL_MODEL_ID AND B.SEGMENTATION_ID = E.SEGMENTATION_ID      
+    JOIN IFRS_ECL_MODEL_DETAIL_PF F ON A.PKID = F.EIL_MODEL_ID      
     WHERE A.IS_DELETE = 0     
     AND B.IS_DELETE = 0      
     AND C.IS_DELETE = 0      
@@ -377,10 +393,10 @@ BEGIN
       PD_SEGMENT,        
       LGD_SEGMENT,        
       EAD_SEGMENT,        
-      PREV_ECL_AMOUNT,        
+      PREV_EIL_AMOUNT,        
       BUCKET_GROUP,        
       BUCKET_ID,        
-      ECL_MODEL_ID,        
+      EIL_MODEL_ID,        
       EAD_MODEL_ID,        
       CCF_RULES_ID,        
       PD_MODEL_ID,        
@@ -391,7 +407,7 @@ BEGIN
       OUTSTANDING,        
       UNAMORT_COST_AMT,         
       UNAMORT_FEE_AMT,        
-      INTEREST_ACCRUED,        
+      MARGIN_ACCRUED,        
       UNUSED_AMOUNT,         
       FAIR_VALUE_AMOUNT,         
       EAD_BALANCE,        
@@ -402,8 +418,8 @@ BEGIN
       PD_BFL,        
       LGD,        
       DISC_EAD,        
-      ECL,        
-      ECL_BFL,        
+      EIL,        
+      EIL_BFL,        
       PD,        
       COLL_AMOUNT         
     )  
@@ -425,10 +441,10 @@ BEGIN
       A.PD_SEGMENT,      
       A.LGD_SEGMENT,      
       A.EAD_SEGMENT,      
-      A.PREV_ECL_AMOUNT,      
+      A.PREV_EIL_AMOUNT,      
       A.BUCKET_GROUP,      
       A.BUCKET_ID,      
-      A.ECL_MODEL_ID,      
+      A.EIL_MODEL_ID,      
       A.EAD_MODEL_ID,       
       A.CCF_RULES_ID,      
       A.PD_MODEL_ID,      
@@ -439,7 +455,7 @@ BEGIN
       A.OUTSTANDING,      
       A.UNAMORT_COST_AMT,       
       A.UNAMORT_FEE_AMT,       
-      A.INTEREST_ACCRUED,      
+      A.MARGIN_ACCRUED,      
       A.UNUSED_AMOUNT,       
       A.FAIR_VALUE_AMOUNT,       
       A.EAD_BALANCE,       
@@ -452,13 +468,13 @@ BEGIN
       CASE WHEN A.STAGE = 3 THEN A.EAD ELSE       
       FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END AS DISC_EAD,      
       (CASE WHEN A.STAGE = 3 THEN A.EAD ELSE       
-      FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * COALESCE(E.PD_FL,C.PD) * COALESCE(D.LGD,1) AS ECL,       
+      FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * COALESCE(E.PD_FL,C.PD) * COALESCE(D.LGD,1) AS EIL,       
       (CASE WHEN A.STAGE = 3 THEN A.EAD ELSE       
-      FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * C.PD * COALESCE(D.LGD,1) AS ECL_BFL,      
+      FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * C.PD * COALESCE(D.LGD,1) AS EIL_BFL,      
       E.PD_FL AS PD ,      
       A.COLL_AMOUNT      
       FROM ' || V_TABLEINSERT5 || ' A     
-      JOIN TMP_IFRS_ECL_MODEL_ECL_' || P_RUNID || ' B ON A.ECL_MODEL_ID = B.ECL_MODEL_ID AND A.SEGMENTATION_ID = B.SEGMENTATION_ID      
+      JOIN TMP_IFRS_ECL_MODEL_ECL_' || P_RUNID || ' B ON A.EIL_MODEL_ID = B.EIL_MODEL_ID AND A.SEGMENTATION_ID = B.SEGMENTATION_ID      
       JOIN TMP_IFRS_ECL_PD_MONTHLY_ECL_' || P_RUNID || ' C ON B.PD_MODEL_ID = C.PD_RULE_ID  AND A.BUCKET_ID = C.BUCKET_ID  AND A.SEQ = C.FL_SEQ AND B.PD_DATE = C.DOWNLOAD_DATE       
       JOIN TMP_IFRS_ECL_LGD_' || P_RUNID || ' D ON B.LGD_MODEL_ID = D.LGD_RULE_ID AND COALESCE(B.LGD_DATE,''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE) = D.DOWNLOAD_DATE       
       JOIN TMP_IFRS_ECL_PD_FL_MONTHLY_ECL_' || P_RUNID || ' E ON B.PD_MODEL_ID = E.PD_RULE_ID AND A.BUCKET_ID = E.BUCKET_ID AND A.SEQ = E.FL_SEQ AND A.SEGMENTATION_ID= E.SEGMENTATION_ID       
@@ -492,10 +508,10 @@ BEGIN
       PD_SEGMENT,      
       LGD_SEGMENT,      
       EAD_SEGMENT,      
-      PREV_ECL_AMOUNT,      
+      PREV_EIL_AMOUNT,      
       BUCKET_GROUP,      
       BUCKET_ID,      
-      ECL_MODEL_ID,      
+      EIL_MODEL_ID,      
       EAD_MODEL_ID,      
       CCF_RULES_ID,      
       PD_MODEL_ID,       
@@ -506,7 +522,7 @@ BEGIN
       OUTSTANDING,      
       UNAMORT_COST_AMT,       
       UNAMORT_FEE_AMT,       
-      INTEREST_ACCRUED,      
+      MARGIN_ACCRUED,      
       UNUSED_AMOUNT,       
       FAIR_VALUE_AMOUNT,       
       EAD_BALANCE,      
@@ -517,8 +533,8 @@ BEGIN
       PD_BFL,      
       LGD,      
       DISC_EAD,      
-      ECL,      
-      ECL_BFL,       
+      EIL,      
+      EIL_BFL,       
       PD,      
       COLL_AMOUNT      
       )      
@@ -540,10 +556,10 @@ BEGIN
       A.PD_SEGMENT,      
       A.LGD_SEGMENT,      
       A.EAD_SEGMENT,      
-      A.PREV_ECL_AMOUNT,      
+      A.PREV_EIL_AMOUNT,      
       A.BUCKET_GROUP,      
       A.BUCKET_ID,      
-      A.ECL_MODEL_ID,      
+      A.EIL_MODEL_ID,      
       A.EAD_MODEL_ID,      
       A.CCF_RULES_ID,      
       A.PD_MODEL_ID,      
@@ -554,7 +570,7 @@ BEGIN
       A.OUTSTANDING,      
       A.UNAMORT_COST_AMT,       
       A.UNAMORT_FEE_AMT,       
-      A.INTEREST_ACCRUED,      
+      A.MARGIN_ACCRUED,      
       A.UNUSED_AMOUNT,       
       A.FAIR_VALUE_AMOUNT,      
       A.EAD_BALANCE,      
@@ -565,12 +581,12 @@ BEGIN
       C.PD AS PD_BFL,      
       D.LGD,      
       FUTIL_PV(COALESCE(A.EIR, 0)/100, A.SEQ, A.EAD) AS DISC_EAD,      
-      FUTIL_PV(COALESCE(A.EIR, 0)/100, A.SEQ, A.EAD) * COALESCE(E.PD_FL,C.PD) * COALESCE(D.LGD,1) AS ECL,      
-      FUTIL_PV(COALESCE(A.EIR, 0)/100, A.SEQ, A.EAD) * C.PD * COALESCE(D.LGD,1) AS ECL_BFL,      
+      FUTIL_PV(COALESCE(A.EIR, 0)/100, A.SEQ, A.EAD) * COALESCE(E.PD_FL,C.PD) * COALESCE(D.LGD,1) AS EIL,      
+      FUTIL_PV(COALESCE(A.EIR, 0)/100, A.SEQ, A.EAD) * C.PD * COALESCE(D.LGD,1) AS EIL_BFL,      
       E.PD_FL,      
       A.COLL_AMOUNT     
       FROM ' || V_TABLEINSERT6 || ' A      
-      JOIN TMP_IFRS_ECL_MODEL_ECL_' || P_RUNID || ' B ON A.ECL_MODEL_ID = B.ECL_MODEL_ID       
+      JOIN TMP_IFRS_ECL_MODEL_ECL_' || P_RUNID || ' B ON A.EIL_MODEL_ID = B.EIL_MODEL_ID       
       AND A.SEGMENTATION_ID = B.SEGMENTATION_ID       
       AND A.PD_MODEL_ID = B.PD_MODEL_ID       
       AND A.LGD_MODEL_ID = B.LGD_MODEL_ID      
@@ -610,10 +626,10 @@ BEGIN
         PD_SEGMENT,      
         LGD_SEGMENT,      
         EAD_SEGMENT,      
-        PREV_ECL_AMOUNT,      
+        PREV_EIL_AMOUNT,      
         BUCKET_GROUP,      
         BUCKET_ID,      
-        ECL_MODEL_ID,      
+        EIL_MODEL_ID,      
         EAD_MODEL_ID,      
         CCF_RULES_ID,      
         PD_MODEL_ID,       
@@ -624,7 +640,7 @@ BEGIN
         OUTSTANDING,      
         UNAMORT_COST_AMT,       
         UNAMORT_FEE_AMT,       
-        INTEREST_ACCRUED,      
+        MARGIN_ACCRUED,      
         UNUSED_AMOUNT,       
         FAIR_VALUE_AMOUNT,       
         EAD_BALANCE,      
@@ -635,8 +651,8 @@ BEGIN
         PD_BFL,      
         LGD,      
         DISC_EAD,      
-        ECL,      
-        ECL_BFL,       
+        EIL,      
+        EIL_BFL,       
         PD,      
         COLL_AMOUNT      
       )      
@@ -658,10 +674,10 @@ BEGIN
         A.PD_SEGMENT,      
         A.LGD_SEGMENT,      
         A.EAD_SEGMENT,      
-        A.PREV_ECL_AMOUNT,      
+        A.PREV_EIL_AMOUNT,      
         A.BUCKET_GROUP,      
         A.BUCKET_ID,      
-        A.ECL_MODEL_ID,      
+        A.EIL_MODEL_ID,      
         A.EAD_MODEL_ID,       
         A.CCF_RULES_ID,      
         A.PD_MODEL_ID,      
@@ -672,7 +688,7 @@ BEGIN
         A.OUTSTANDING,      
         A.UNAMORT_COST_AMT,       
         A.UNAMORT_FEE_AMT,       
-        A.INTEREST_ACCRUED,      
+        A.MARGIN_ACCRUED,      
         A.UNUSED_AMOUNT,       
         A.FAIR_VALUE_AMOUNT,       
         A.EAD_BALANCE,       
@@ -685,13 +701,13 @@ BEGIN
         CASE WHEN A.STAGE = 3 THEN A.EAD ELSE       
         FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END AS DISC_EAD,      
         (CASE WHEN A.STAGE = 3 THEN A.EAD ELSE       
-        FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * COALESCE(E.PD_FL,C.PD) * COALESCE(D.LGD,1) AS ECL,       
+        FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * COALESCE(E.PD_FL,C.PD) * COALESCE(D.LGD,1) AS EIL,       
         (CASE WHEN A.STAGE = 3 THEN A.EAD ELSE       
-        FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * C.PD * COALESCE(D.LGD,1) AS ECL_BFL,      
+        FUTIL_PV(COALESCE(A.EIR, 0)/100/12, A.SEQ, A.EAD) END) * C.PD * COALESCE(D.LGD,1) AS EIL_BFL,      
         E.PD_FL ,      
         A.COLL_AMOUNT  
       FROM ' || V_TABLEINSERT7 || ' A      
-      JOIN TMP_IFRS_ECL_MODEL_ECL_' || P_RUNID || ' B ON A.ECL_MODEL_ID = B.ECL_MODEL_ID AND A.SEGMENTATION_ID = B.SEGMENTATION_ID      
+      JOIN TMP_IFRS_ECL_MODEL_ECL_' || P_RUNID || ' B ON A.EIL_MODEL_ID = B.EIL_MODEL_ID AND A.SEGMENTATION_ID = B.SEGMENTATION_ID      
       JOIN TMP_IFRS_ECL_PD_MONTHLY_ECL_' || P_RUNID || ' C ON      
       B.PD_MODEL_ID = C.PD_RULE_ID      
       AND A.BUCKET_ID = C.BUCKET_ID       
@@ -715,14 +731,14 @@ BEGIN
       (        
         DOWNLOAD_DATE,         
         MASTERID,         
-        ECL_AMOUNT,         
-        ECL_AMOUNT_BFL        
+        EIL_AMOUNT,         
+        EIL_AMOUNT_BFL        
         )  
         SELECT       
         DOWNLOAD_DATE,       
         MASTERID,       
-        SUM(ECL) AS ECL_AMOUNT,       
-        SUM(ECL_BFL) AS ECL_AMOUNT_BFL      
+        SUM(EIL) AS EIL_AMOUNT,       
+        SUM(EIL_BFL) AS EIL_AMOUNT_BFL      
         FROM ' || V_TABLEINSERT3 || '      
         WHERE DOWNLOAD_DATE = ''' || CAST(V_CURRDATE AS VARCHAR(10)) || '''::DATE      
         GROUP BY DOWNLOAD_DATE, MASTERID';
@@ -732,7 +748,7 @@ BEGIN
       V_RETURNROWS2 := V_RETURNROWS2 + V_RETURNROWS;
       V_RETURNROWS := 0;
 
-      ----------------------------------------- END INSERT IFRS ECL RESULT HEADER -----------------------------------------
+      ----------------------------------------- END INSERT IFRS EIL RESULT HEADER -----------------------------------------
 
       RAISE NOTICE 'SP_IFRS_ECL_RESULT_DETAIL | AFFECTED RECORD : %', V_RETURNROWS2;
       -------- ====== BODY ======

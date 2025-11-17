@@ -173,14 +173,14 @@ BEGIN
         GL.TXN_TYPE,                  
         SUM(                  
             CASE                  
-                WHEN GL.IFRS_ACCT_TYPE = ''BKIP'' THEN COALESCE(PMA.ECL_AMOUNT, 0)                  
+                WHEN GL.IFRS_ACCT_TYPE = ''BKIP'' THEN COALESCE(PMA.EIL_AMOUNT, 0)                  
                 WHEN GL.IFRS_ACCT_TYPE = ''BIUW'' THEN COALESCE(PMA.IA_UNWINDING_AMOUNT, 0)                  
             ELSE NULL                  
             END    
         ) AS AMOUNT,                  
         SUM(                  
             CASE            
-                WHEN GL.IFRS_ACCT_TYPE = ''BKIP'' THEN COALESCE(PMA.ECL_AMOUNT, 0)  * COALESCE(PMA.EXCHANGE_RATE, 1)                 
+                WHEN GL.IFRS_ACCT_TYPE = ''BKIP'' THEN COALESCE(PMA.EIL_AMOUNT, 0)  * COALESCE(PMA.EXCHANGE_RATE, 1)                 
                 WHEN GL.IFRS_ACCT_TYPE = ''BIUW'' THEN COALESCE(PMA.IA_UNWINDING_AMOUNT, 0) * COALESCE(PMA.EXCHANGE_RATE, 1)             
             ELSE NULL                  
             END                
@@ -244,8 +244,8 @@ BEGIN
         PMA.BRANCH_CODE,                  
         PMA.CURRENCY,                  
         GL.TXN_TYPE,                  
-        SUM(COALESCE(PMA.ECL_AMOUNT, 0) ) AS AMOUNT,                  
-        SUM(COALESCE(PMA.ECL_AMOUNT, 0)  * COALESCE(PMA.EXCHANGE_RATE, 1))AS AMOUNT_IDR,                  
+        SUM(COALESCE(PMA.EIL_AMOUNT, 0) ) AS AMOUNT,                  
+        SUM(COALESCE(PMA.EIL_AMOUNT, 0)  * COALESCE(PMA.EXCHANGE_RATE, 1))AS AMOUNT_IDR,                  
         GL.GL_CODE,                  
         GL.GL_INTERNAL_CODE,                  
         GL.REMARKS,                  

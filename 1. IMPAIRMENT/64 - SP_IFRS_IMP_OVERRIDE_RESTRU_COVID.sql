@@ -88,7 +88,15 @@ BEGIN
         EXECUTE (V_STR_QUERY);
 
         V_STR_QUERY := '';
-        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE ' || V_TABLEINSERT1 || ' AS SELECT * FROM TMP_IFRS_ECL_IMA_COVID WHERE 1=0 ';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT DUPLICATE_TABLE(LOWER(''TMP_IFRS_ECL_IMA_COVID''),LOWER(''' || V_TABLEINSERT1 || '''), TRUE)';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'DROP TABLE IF EXISTS ' || V_TABLEINSERT2 || ' ';
+        EXECUTE (V_STR_QUERY);
+
+        V_STR_QUERY := '';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT DUPLICATE_TABLE(LOWER(''IFRS_MASTER_RESTRU_COVID''),LOWER(''' || V_TABLEINSERT2 || '''), TRUE)';
         EXECUTE (V_STR_QUERY);
 
         V_STR_QUERY := '';
@@ -96,7 +104,7 @@ BEGIN
         EXECUTE (V_STR_QUERY);
 
         V_STR_QUERY := '';
-        V_STR_QUERY := V_STR_QUERY || 'CREATE TABLE ' || V_TABLEINSERT3 || ' AS SELECT * FROM TMP_IFRS_ECL_IMA WHERE 1=0 ';
+        V_STR_QUERY := V_STR_QUERY || 'SELECT DUPLICATE_TABLE(LOWER(''TMP_IFRS_ECL_IMA''),LOWER(''' || V_TABLEINSERT3 || '''), TRUE)';
         EXECUTE (V_STR_QUERY);
     END IF;
     -------- ====== PRE SIMULATION TABLE ======
@@ -117,7 +125,7 @@ BEGIN
             ,EIR  
             ,OUTSTANDING  
             ,PLAFOND  
-            ,ECL_MODEL_ID  
+            ,EIL_MODEL_ID  
             ,EAD_MODEL_ID  
             ,CCF_FLAG  
             ,LGD_MODEL_ID  
@@ -133,7 +141,7 @@ BEGIN
             ,ACCOUNT_NUMBER  
             ,UNAMORT_COST_AMT  
             ,UNAMORT_FEE_AMT  
-            ,INTEREST_ACCRUED  
+            ,MARGIN_ACCRUED  
             ,UNUSED_AMOUNT  
             ,FAIR_VALUE_AMOUNT  
             ,EAD_BALANCE  
@@ -149,7 +157,7 @@ BEGIN
             ,PD_SEGMENT  
             ,LGD_SEGMENT  
             ,EAD_SEGMENT  
-            ,PREV_ECL_AMOUNT  
+            ,PREV_EIL_AMOUNT  
             ,SICR_FLAG  
             ,DEFAULT_FLAG  
             ,DEFAULT_RULE_ID  
@@ -173,7 +181,7 @@ BEGIN
             ,EIR  
             ,OUTSTANDING  
             ,PLAFOND  
-            ,ECL_MODEL_ID  
+            ,EIL_MODEL_ID  
             ,EAD_MODEL_ID  
             ,CCF_FLAG  
             ,LGD_MODEL_ID  
@@ -189,7 +197,7 @@ BEGIN
             ,ACCOUNT_NUMBER  
             ,UNAMORT_COST_AMT  
             ,UNAMORT_FEE_AMT  
-            ,INTEREST_ACCRUED  
+            ,MARGIN_ACCRUED  
             ,UNUSED_AMOUNT  
             ,FAIR_VALUE_AMOUNT  
             ,EAD_BALANCE  
@@ -205,7 +213,7 @@ BEGIN
             ,PD_SEGMENT  
             ,LGD_SEGMENT  
             ,EAD_SEGMENT  
-            ,PREV_ECL_AMOUNT  
+            ,PREV_EIL_AMOUNT  
             ,SICR_FLAG  
             ,DEFAULT_FLAG  
             ,DEFAULT_RULE_ID  

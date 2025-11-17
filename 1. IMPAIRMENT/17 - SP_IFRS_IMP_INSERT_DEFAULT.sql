@@ -226,7 +226,7 @@ BEGIN
     ,A.EXCHANGE_RATE                              
     ,A.PLAFOND                              
     ,A.OUTSTANDING                              
-    ,A.INTEREST_RATE                              
+    ,A.MARGIN_RATE                              
     ,A.EIR                              
     ,A.SUB_SEGMENT                      
     ,A.FACILITY_NUMBER                      
@@ -322,7 +322,7 @@ BEGIN
     ,EXCHANGE_RATE                              
     ,PLAFOND                              
     ,OUTSTANDING                         
-    ,INTEREST_RATE                              
+    ,MARGIN_RATE                              
     ,EIR                      
     ,SUB_SEGMENT                      
     ,FP_FLAG_ORIG                      
@@ -352,7 +352,7 @@ BEGIN
     ,EXCHANGE_RATE                              
     ,PLAFOND                              
     ,OUTSTANDING                              
-    ,INTEREST_RATE                              
+    ,MARGIN_RATE                              
     ,EIR                      
     ,SUB_SEGMENT                      
     ,FP_FLAG_ORIG                      

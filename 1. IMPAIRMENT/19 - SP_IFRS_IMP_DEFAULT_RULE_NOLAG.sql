@@ -291,7 +291,7 @@ BEGIN
                 ,OUTSTANDING * EXCHANGE_RATE 
                 ,PLAFOND 
                 ,PLAFOND * EXCHANGE_RATE 
-                ,COALESCE(EIR, INTEREST_RATE) 
+                ,COALESCE(EIR, MARGIN_RATE) 
                 ,CURRENT_TIMESTAMP 
                 ,FACILITY_NUMBER 
             FROM ' || V_SEG.UPDATED_TABLE || ' A 
